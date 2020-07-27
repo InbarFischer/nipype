@@ -10,6 +10,9 @@ from ..base import (
 )
 from .base import FSLCommand, FSLCommandInputSpec, Info
 
+
+import os
+
 class FSLAnatInputSpec(FSLCommandInputSpec):
 
     input_img = File(
@@ -18,10 +21,10 @@ class FSLAnatInputSpec(FSLCommandInputSpec):
         argstr="-i %s",
         position=-1,
         mandatory =True,
-        xor = ['directory']
+        xor = ['input_directory']
     )
 
-    directory = Directory(
+    input_directory = Directory(
         exists=True,
         desc="directory name for existing .anat directory where this script will be run in place",
         argstr="-d %s",
@@ -45,8 +48,8 @@ class FSLAnatInputSpec(FSLCommandInputSpec):
                            argstr="--clobber"
                            )
 
-    noreorient = traits.Int(desc="turn off step that does reorientation 2 standard (fslreorient2std)",
-                           argstr="--noreorient %d")
+    noreorient = traits.Bool(desc="turn off step that does reorientation 2 standard (fslreorient2std)",
+                           argstr="--noreorient")
 
     nocrop = traits.Bool(desc="turn off step that does automated cropping (robustfov)",
                            argstr="--nocrop"
@@ -93,28 +96,28 @@ class FSLAnatInputSpec(FSLCommandInputSpec):
                            )
 
 class FSLAnatOutputSpec(TraitedSpec):
-    Out = File(exists=False,extentions= '.nii', desc= r"Contains either the T1, T2 or PD image (according to the -t input option) after cropping and\or orientation.")
-    Out_orig = File(exists=False,extentions= '.nii' , desc= r"The original image (exists if the image was cropped and\or reoriented)")
-    Out_fullfov= File(exists=False, extentions= '.nii', desc= r"The image in full field-of-view (exists if the image was cropped and\or reoriented)" )
-    Out_orig2std = File(exists=False, extentions= '.mat', desc= "")
-    Out_noroi2roi = File(exists=False, extentions= '.mat', desc= "")
-    Out_biascorr = File(exists=False, extentions= '.nii', desc= "")
-    Out_to_MNI_lin = File(exists=False, extentions= '.nii', desc= "Linear registration output")
-    Out_to_MNI_nonlin = File(exists=False, extentions= '.nii', desc= "Non-linear registration output")
-    Out_to_MNI_nonlin_field = File(exists=False, extentions= '.nii', desc= "Non-linear warp field")
-    Out_to_MNI_nonlin_jac = File(exists=False, extentions= '.nii', desc= "Jacobian of the non-linear warp field")
-    Out_vols = File(exists=False, extentions= '.txt', desc= "A file containing a scaling factor and brain volumes, based on skull-contrained registration, "
+    Out = File(exists=False, desc= r"Contains either the T1, T2 or PD image (according to the -t input option) after cropping and\or orientation.")
+    Out_orig = File(exists=False,  desc= r"The original image (exists if the image was cropped and\or reoriented)")
+    Out_fullfov= File(exists=False,  desc= r"The image in full field-of-view (exists if the image was cropped and\or reoriented)" )
+    Out_orig2std = File(exists=False,  desc= "")
+    Out_noroi2roi = File(exists=False, desc= "")
+    Out_biascorr = File(exists=False,  desc= "")
+    Out_to_MNI_lin = File(exists=False,  desc= "Linear registration output")
+    Out_to_MNI_nonlin = File(exists=False, desc= "Non-linear registration output")
+    Out_to_MNI_nonlin_field = File(exists=False, desc= "Non-linear warp field")
+    Out_to_MNI_nonlin_jac = File(exists=False, desc= "Jacobian of the non-linear warp field")
+    Out_vols = File(exists=False, desc= "A file containing a scaling factor and brain volumes, based on skull-contrained registration, "
                                         "suitable for head-size normalisation (as the scaling is based on the skull size, not the brain size")
-    Out_biascorr_brain = File(exists=False, extentions= '.nii', desc= "")
-    Out_biascorr_brain_mask = File(exists=False, extentions= '.nii', desc= "")
-    Out_fast_pve_0 = File(exists=False, extentions= '.nii', desc= "Cerebral spinal fluid segmentation")
-    Out_fast_pve_1 = File(exists=False, extentions= '.nii', desc="Gray matter segmentation")
-    Out_fast_pve_2 = File(exists=False, extentions= '.nii', desc="White matter segmentation")
-    Out_fast_pveseg = File(exists=False, extentions= '.nii', desc="A summary image showing the tissue with the greatest partial volume fraction per voxel")
-    Out_subcort_seg = File(exists=False, extentions= '.nii', desc="Summary image of all sub-cortical segmentations")
+    Out_biascorr_brain = File(exists=False, desc= "")
+    Out_biascorr_brain_mask = File(exists=False,  desc= "")
+    Out_fast_pve_0 = File(exists=False, desc= "Cerebral spinal fluid segmentation")
+    Out_fast_pve_1 = File(exists=False,  desc="Gray matter segmentation")
+    Out_fast_pve_2 = File(exists=False,  desc="White matter segmentation")
+    Out_fast_pveseg = File(exists=False,  desc="A summary image showing the tissue with the greatest partial volume fraction per voxel")
+    Out_subcort_seg = File(exists=False, desc="Summary image of all sub-cortical segmentations")
     first_results = Directory(desc="") #TODO: add path?
-    Out_first_all_fast_firstseg = File(exists=False, extentions= '.nii', desc="")
-    Out_biascorr_to_std_sub = File(exists=False, extentions= '.nii', desc="A transformation matrix of the sub-cortical optimised MNI registration")
+    Out_first_all_fast_firstseg = File(exists=False,  desc="")
+    Out_biascorr_to_std_sub = File(exists=False, desc="A transformation matrix of the sub-cortical optimised MNI registration")
 
 
 
@@ -124,13 +127,33 @@ class FSLAnat(FSLCommand):
     output_spec = FSLAnatOutputSpec
 
     def _list_outputs(self):
-        if not isdefined(self.inputs.Type):
+        outputs = self.output_spec().get()
+        if not isdefined(self.inputs.image_type):
             out_type = 'T1'
         else:
             out_type = self.inputs.image_type
-        outputs = self.output_spec().get()
+        if  isdefined(self.inputs.output_directory):
+            out_directory = self.inputs.output_directory + ".anat"
+        elif isdefined(self.inputs.input_directory):
+            out_directory = self.inputs.input_directory
+
+        else:
+            out_directory = FSLAnat.remove_ext(self.inputs.input_img) + ".anat"
+        res_path = os.path.join(os.getcwd(),out_directory)
+        res_files = [os.path.join(res_path, f) for f in os.listdir(res_path) if os.path.isfile(os.path.join(res_path, f))]
+        res_dict = {split_filename(k)[1]:k for k in res_files}
         for k in set(outputs.keys()):
-            outputs[k] = self._gen_fname(k.replace('Out',out_type,1), cwd=self.inputs.output_directory)
+            corrected_name = k.replace('Out',out_type,1)
+            if corrected_name in res_dict.keys():
+                outputs[k] = res_dict[corrected_name]
 
+            #else:
+                #outputs[k] = None
         return outputs
-
+    @staticmethod
+    def remove_ext(s):
+        last_dot = s.rfind('.')
+        if  last_dot != -1:
+            return s[:last_dot]
+        else:
+            return s
