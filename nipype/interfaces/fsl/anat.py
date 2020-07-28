@@ -160,9 +160,9 @@ class FSLAnat(FSLCommand):
         --------
 
         >>> from nipype.interfaces import fsl
-        >>> fsl_anat = fsl.FSLAnat()
-        >>> fsl_anat.inputs.in_file = 'structural.nii'
-        >>> res = fsl_anat.run() #doctest: +SKIP
+        >>> anat = fsl.FSLAnat()
+        >>> anat.inputs.input_img = 'a.nii'
+        >>> res = anat.run()
     """
     _cmd = "fsl_anat"
     input_spec = FSLAnatInputSpec
