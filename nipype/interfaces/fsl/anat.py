@@ -64,7 +64,7 @@ class FSLAnatInputSpec(FSLCommandInputSpec):
                            argstr="--noreg"
                            )
 
-    nononlinreg = traits.Bool(desc="turn off step that does non-linear registration (FNIRT)",
+    nononlinreg = traits.Bool(xor = ['betfparam'], desc="turn off step that does non-linear registration (FNIRT)",
                            argstr="--nononlinreg"
                            )
 
@@ -88,8 +88,8 @@ class FSLAnatInputSpec(FSLCommandInputSpec):
                            argstr="--nosearch"
                            )
 
-    betfparam = traits.Float(desc="specify f parameter for BET (only used if not running non-linear reg and also wanting brain extraction done)",
-                           argstr="--betfparam %.2f"
+    betfparam = traits.Float(xor = ['nononlinreg'], desc="specify f parameter for BET (only used if not running non-linear reg and also wanting brain extraction done)",
+                           argstr="--betfparam %.10f"
                            )
 
     nocleanup = traits.Bool(desc="do not remove intermediate files",
@@ -149,9 +149,9 @@ class FSLAnatOutputSpec(TraitedSpec):
                                                                              "segmentations")
     Out_biascorr_to_std_sub = File(exists=False, desc="A transformation matrix of the sub-cortical "
                                                                          "optimised MNI registration")
-    first_results = Directory(exists=False, desc="FIRST output folder")  # TODO: add path?
-    Out_vtk_surfaces = OutputMultiPath(File(exists=False), desc="VTK format meshes for each subcortical region")
-    Out_bvars = OutputMultiPath(File(exists=False), desc="bvars for each subcortical region")
+    first_results = Directory(exists=False, desc="FIRST output folder")
+    #Out_vtk_surfaces = OutputMultiPath(File(exists=False), desc="VTK format meshes for each subcortical region")
+    #Out_bvars = OutputMultiPath(File(exists=False), desc="bvars for each subcortical region")
 
 class FSLAnat(FSLCommand):
     """FSL fsl_anat wrapper for pipeline to processing anatomical images (e.g. T1-weighted scans).
@@ -168,8 +168,6 @@ class FSLAnat(FSLCommand):
     input_spec = FSLAnatInputSpec
     output_spec = FSLAnatOutputSpec
 
-#Creats a dictionary: the keys are the type of output that is described in FSLAnatInputSpec and the values are the paths to the output files that were created. If an output file was not created, its value will be 'undefined'.
-
     def _list_outputs(self):
         outputs = self.output_spec().get()
         if not isdefined(self.inputs.image_type):
@@ -183,20 +181,12 @@ class FSLAnat(FSLCommand):
         elif isdefined(self.inputs.input_directory):
             out_directory = self.inputs.input_directory
         else:
-            out_directory = FSLAnat.remove_ext(self.inputs.input_img) + ".anat"
+            out_directory = split_filename(self.inputs.input_img)[1]  + ".anat"
         res_path = os.path.join(os.getcwd(),out_directory)
         res_files = [os.path.join(res_path, f) for f in os.listdir(res_path)]
         res_dict = {split_filename(k)[1]:k for k in res_files}
-        print(res_files)
         for k in set(outputs.keys()):
             corrected_name = k.replace('Out',out_type,1)
             if corrected_name in res_dict.keys():
                 outputs[k] = res_dict[corrected_name]
         return outputs
-    @staticmethod
-    def remove_ext(s):
-        last_dot = s.rfind('.')
-        if  last_dot != -1:
-            return s[:last_dot]
-        else:
-            return s
